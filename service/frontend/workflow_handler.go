@@ -227,10 +227,6 @@ func (wh *WorkflowHandler) Stop() {
 	}
 }
 
-func (wh *WorkflowHandler) isStopped() bool {
-	return atomic.LoadInt32(&wh.status) == common.DaemonStatusStopped
-}
-
 // GetConfig return config
 func (wh *WorkflowHandler) GetConfig() *Config {
 	return wh.config
@@ -242,10 +238,6 @@ func (wh *WorkflowHandler) GetConfig() *Config {
 // namespace.
 func (wh *WorkflowHandler) RegisterNamespace(ctx context.Context, request *workflowservice.RegisterNamespaceRequest) (_ *workflowservice.RegisterNamespaceResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -267,10 +259,6 @@ func (wh *WorkflowHandler) RegisterNamespace(ctx context.Context, request *workf
 func (wh *WorkflowHandler) DescribeNamespace(ctx context.Context, request *workflowservice.DescribeNamespaceRequest) (_ *workflowservice.DescribeNamespaceResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -286,10 +274,6 @@ func (wh *WorkflowHandler) DescribeNamespace(ctx context.Context, request *workf
 func (wh *WorkflowHandler) ListNamespaces(ctx context.Context, request *workflowservice.ListNamespacesRequest) (_ *workflowservice.ListNamespacesResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -304,10 +288,6 @@ func (wh *WorkflowHandler) ListNamespaces(ctx context.Context, request *workflow
 // UpdateNamespace is used to update the information and configuration for a registered namespace.
 func (wh *WorkflowHandler) UpdateNamespace(ctx context.Context, request *workflowservice.UpdateNamespaceRequest) (_ *workflowservice.UpdateNamespaceResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -327,10 +307,6 @@ func (wh *WorkflowHandler) UpdateNamespace(ctx context.Context, request *workflo
 func (wh *WorkflowHandler) DeprecateNamespace(ctx context.Context, request *workflowservice.DeprecateNamespaceRequest) (_ *workflowservice.DeprecateNamespaceResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -348,10 +324,6 @@ func (wh *WorkflowHandler) DeprecateNamespace(ctx context.Context, request *work
 // exists with same workflowId.
 func (wh *WorkflowHandler) StartWorkflowExecution(ctx context.Context, request *workflowservice.StartWorkflowExecutionRequest) (_ *workflowservice.StartWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -426,10 +398,6 @@ func (wh *WorkflowHandler) StartWorkflowExecution(ctx context.Context, request *
 // execution in unknown to the service.
 func (wh *WorkflowHandler) GetWorkflowExecutionHistory(ctx context.Context, request *workflowservice.GetWorkflowExecutionHistoryRequest) (_ *workflowservice.GetWorkflowExecutionHistoryResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -715,10 +683,6 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(ctx context.Context, requ
 func (wh *WorkflowHandler) GetWorkflowExecutionHistoryReverse(ctx context.Context, request *workflowservice.GetWorkflowExecutionHistoryReverseRequest) (_ *workflowservice.GetWorkflowExecutionHistoryReverseResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -943,10 +907,6 @@ func (wh *WorkflowHandler) RespondWorkflowTaskCompleted(
 
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -1013,10 +973,6 @@ func (wh *WorkflowHandler) RespondWorkflowTaskFailed(
 ) (_ *workflowservice.RespondWorkflowTaskFailedResponse, retError error) {
 
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -1172,10 +1128,6 @@ func (wh *WorkflowHandler) PollActivityTaskQueue(ctx context.Context, request *w
 func (wh *WorkflowHandler) RecordActivityTaskHeartbeat(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatRequest) (_ *workflowservice.RecordActivityTaskHeartbeatResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -1239,10 +1191,6 @@ func (wh *WorkflowHandler) RecordActivityTaskHeartbeat(ctx context.Context, requ
 // use Namespace, WorkflowID and ActivityID
 func (wh *WorkflowHandler) RecordActivityTaskHeartbeatById(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatByIdRequest) (_ *workflowservice.RecordActivityTaskHeartbeatByIdResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -1340,10 +1288,6 @@ func (wh *WorkflowHandler) RespondActivityTaskCompleted(
 
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -1408,10 +1352,6 @@ func (wh *WorkflowHandler) RespondActivityTaskCompleted(
 // if the these Ids are not valid anymore due to activity timeout.
 func (wh *WorkflowHandler) RespondActivityTaskCompletedById(ctx context.Context, request *workflowservice.RespondActivityTaskCompletedByIdRequest) (_ *workflowservice.RespondActivityTaskCompletedByIdResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -1512,10 +1452,6 @@ func (wh *WorkflowHandler) RespondActivityTaskFailed(
 
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -1598,10 +1534,6 @@ func (wh *WorkflowHandler) RespondActivityTaskFailed(
 // if the these IDs are not valid anymore due to activity timeout.
 func (wh *WorkflowHandler) RespondActivityTaskFailedById(ctx context.Context, request *workflowservice.RespondActivityTaskFailedByIdRequest) (_ *workflowservice.RespondActivityTaskFailedByIdResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -1710,10 +1642,6 @@ func (wh *WorkflowHandler) RespondActivityTaskFailedById(ctx context.Context, re
 func (wh *WorkflowHandler) RespondActivityTaskCanceled(ctx context.Context, request *workflowservice.RespondActivityTaskCanceledRequest) (_ *workflowservice.RespondActivityTaskCanceledResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -1779,10 +1707,6 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceled(ctx context.Context, requ
 // if the these IDs are not valid anymore due to activity timeout.
 func (wh *WorkflowHandler) RespondActivityTaskCanceledById(ctx context.Context, request *workflowservice.RespondActivityTaskCanceledByIdRequest) (_ *workflowservice.RespondActivityTaskCanceledByIdResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -1877,10 +1801,6 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceledById(ctx context.Context, 
 func (wh *WorkflowHandler) RequestCancelWorkflowExecution(ctx context.Context, request *workflowservice.RequestCancelWorkflowExecutionRequest) (_ *workflowservice.RequestCancelWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -1909,10 +1829,6 @@ func (wh *WorkflowHandler) RequestCancelWorkflowExecution(ctx context.Context, r
 // WorkflowExecutionSignaled event recorded in the history and a workflow task being created for the execution.
 func (wh *WorkflowHandler) SignalWorkflowExecution(ctx context.Context, request *workflowservice.SignalWorkflowExecutionRequest) (_ *workflowservice.SignalWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -1973,10 +1889,6 @@ func (wh *WorkflowHandler) SignalWorkflowExecution(ctx context.Context, request 
 // events being recorded in history, and a workflow task being created for the execution
 func (wh *WorkflowHandler) SignalWithStartWorkflowExecution(ctx context.Context, request *workflowservice.SignalWithStartWorkflowExecutionRequest) (_ *workflowservice.SignalWithStartWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2056,10 +1968,6 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecution(ctx context.Context,
 func (wh *WorkflowHandler) ResetWorkflowExecution(ctx context.Context, request *workflowservice.ResetWorkflowExecutionRequest) (_ *workflowservice.ResetWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2099,10 +2007,6 @@ func (wh *WorkflowHandler) ResetWorkflowExecution(ctx context.Context, request *
 // in the history and immediately terminating the execution instance.
 func (wh *WorkflowHandler) TerminateWorkflowExecution(ctx context.Context, request *workflowservice.TerminateWorkflowExecutionRequest) (_ *workflowservice.TerminateWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2162,10 +2066,6 @@ func (wh *WorkflowHandler) DeleteWorkflowExecution(ctx context.Context, request 
 // ListOpenWorkflowExecutions is a visibility API to list the open executions in a specific namespace.
 func (wh *WorkflowHandler) ListOpenWorkflowExecutions(ctx context.Context, request *workflowservice.ListOpenWorkflowExecutionsRequest) (_ *workflowservice.ListOpenWorkflowExecutionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2252,10 +2152,6 @@ func (wh *WorkflowHandler) ListOpenWorkflowExecutions(ctx context.Context, reque
 // ListClosedWorkflowExecutions is a visibility API to list the closed executions in a specific namespace.
 func (wh *WorkflowHandler) ListClosedWorkflowExecutions(ctx context.Context, request *workflowservice.ListClosedWorkflowExecutionsRequest) (_ *workflowservice.ListClosedWorkflowExecutionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2358,10 +2254,6 @@ func (wh *WorkflowHandler) ListClosedWorkflowExecutions(ctx context.Context, req
 func (wh *WorkflowHandler) ListWorkflowExecutions(ctx context.Context, request *workflowservice.ListWorkflowExecutionsRequest) (_ *workflowservice.ListWorkflowExecutionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2401,10 +2293,6 @@ func (wh *WorkflowHandler) ListWorkflowExecutions(ctx context.Context, request *
 // ListArchivedWorkflowExecutions is a visibility API to list archived workflow executions in a specific namespace.
 func (wh *WorkflowHandler) ListArchivedWorkflowExecutions(ctx context.Context, request *workflowservice.ListArchivedWorkflowExecutionsRequest) (_ *workflowservice.ListArchivedWorkflowExecutionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2484,10 +2372,6 @@ func (wh *WorkflowHandler) ListArchivedWorkflowExecutions(ctx context.Context, r
 func (wh *WorkflowHandler) ScanWorkflowExecutions(ctx context.Context, request *workflowservice.ScanWorkflowExecutionsRequest) (_ *workflowservice.ScanWorkflowExecutionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2529,10 +2413,6 @@ func (wh *WorkflowHandler) ScanWorkflowExecutions(ctx context.Context, request *
 func (wh *WorkflowHandler) CountWorkflowExecutions(ctx context.Context, request *workflowservice.CountWorkflowExecutionsRequest) (_ *workflowservice.CountWorkflowExecutionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2563,10 +2443,6 @@ func (wh *WorkflowHandler) CountWorkflowExecutions(ctx context.Context, request 
 func (wh *WorkflowHandler) GetSearchAttributes(ctx context.Context, _ *workflowservice.GetSearchAttributesRequest) (_ *workflowservice.GetSearchAttributesResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	searchAttributes, err := wh.saProvider.GetSearchAttributes(wh.visibilityMrg.GetIndexName(), false)
 	if err != nil {
 		return nil, serviceerror.NewUnavailable(fmt.Sprintf(errUnableToGetSearchAttributesMessage, err))
@@ -2586,10 +2462,6 @@ func (wh *WorkflowHandler) RespondQueryTaskCompleted(
 ) (_ *workflowservice.RespondQueryTaskCompletedResponse, retError error) {
 
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2654,10 +2526,6 @@ func (wh *WorkflowHandler) RespondQueryTaskCompleted(
 func (wh *WorkflowHandler) ResetStickyTaskQueue(ctx context.Context, request *workflowservice.ResetStickyTaskQueueRequest) (_ *workflowservice.ResetStickyTaskQueueResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2684,10 +2552,6 @@ func (wh *WorkflowHandler) ResetStickyTaskQueue(ctx context.Context, request *wo
 // QueryWorkflow returns query result for a specified workflow execution
 func (wh *WorkflowHandler) QueryWorkflow(ctx context.Context, request *workflowservice.QueryWorkflowRequest) (_ *workflowservice.QueryWorkflowResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if wh.config.DisallowQuery(request.GetNamespace()) {
 		return nil, errQueryDisallowedForNamespace
@@ -2747,10 +2611,6 @@ func (wh *WorkflowHandler) QueryWorkflow(ctx context.Context, request *workflows
 func (wh *WorkflowHandler) DescribeWorkflowExecution(ctx context.Context, request *workflowservice.DescribeWorkflowExecutionRequest) (_ *workflowservice.DescribeWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2801,10 +2661,6 @@ func (wh *WorkflowHandler) DescribeWorkflowExecution(ctx context.Context, reques
 // pollers which polled this taskqueue in last few minutes.
 func (wh *WorkflowHandler) DescribeTaskQueue(ctx context.Context, request *workflowservice.DescribeTaskQueueRequest) (_ *workflowservice.DescribeTaskQueueResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2858,10 +2714,6 @@ func (wh *WorkflowHandler) GetClusterInfo(ctx context.Context, _ *workflowservic
 func (wh *WorkflowHandler) GetSystemInfo(ctx context.Context, request *workflowservice.GetSystemInfoRequest) (_ *workflowservice.GetSystemInfoResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -2887,10 +2739,6 @@ func (wh *WorkflowHandler) GetSystemInfo(ctx context.Context, request *workflows
 // ListTaskQueuePartitions returns all the partition and host for a task queue.
 func (wh *WorkflowHandler) ListTaskQueuePartitions(ctx context.Context, request *workflowservice.ListTaskQueuePartitionsRequest) (_ *workflowservice.ListTaskQueuePartitionsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -2924,10 +2772,6 @@ func (wh *WorkflowHandler) ListTaskQueuePartitions(ctx context.Context, request 
 // Creates a new schedule.
 func (wh *WorkflowHandler) CreateSchedule(ctx context.Context, request *workflowservice.CreateScheduleRequest) (_ *workflowservice.CreateScheduleResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -3089,10 +2933,6 @@ func (wh *WorkflowHandler) validateStartWorkflowArgsForSchedule(
 // Returns the schedule description and current state of an existing schedule.
 func (wh *WorkflowHandler) DescribeSchedule(ctx context.Context, request *workflowservice.DescribeScheduleRequest) (_ *workflowservice.DescribeScheduleResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -3274,10 +3114,6 @@ func (wh *WorkflowHandler) DescribeSchedule(ctx context.Context, request *workfl
 func (wh *WorkflowHandler) UpdateSchedule(ctx context.Context, request *workflowservice.UpdateScheduleRequest) (_ *workflowservice.UpdateScheduleResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -3359,10 +3195,6 @@ func (wh *WorkflowHandler) UpdateSchedule(ctx context.Context, request *workflow
 func (wh *WorkflowHandler) PatchSchedule(ctx context.Context, request *workflowservice.PatchScheduleRequest) (_ *workflowservice.PatchScheduleResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -3430,10 +3262,6 @@ func (wh *WorkflowHandler) PatchSchedule(ctx context.Context, request *workflows
 func (wh *WorkflowHandler) ListScheduleMatchingTimes(ctx context.Context, request *workflowservice.ListScheduleMatchingTimesRequest) (_ *workflowservice.ListScheduleMatchingTimesResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -3498,10 +3326,6 @@ func (wh *WorkflowHandler) ListScheduleMatchingTimes(ctx context.Context, reques
 func (wh *WorkflowHandler) DeleteSchedule(ctx context.Context, request *workflowservice.DeleteScheduleRequest) (_ *workflowservice.DeleteScheduleResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -3536,10 +3360,6 @@ func (wh *WorkflowHandler) DeleteSchedule(ctx context.Context, request *workflow
 // List all schedules in a namespace.
 func (wh *WorkflowHandler) ListSchedules(ctx context.Context, request *workflowservice.ListSchedulesRequest) (_ *workflowservice.ListSchedulesResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -3607,10 +3427,6 @@ func (wh *WorkflowHandler) ListSchedules(ctx context.Context, request *workflows
 func (wh *WorkflowHandler) UpdateWorkerBuildIdOrdering(ctx context.Context, request *workflowservice.UpdateWorkerBuildIdOrderingRequest) (_ *workflowservice.UpdateWorkerBuildIdOrderingResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -3645,10 +3461,6 @@ func (wh *WorkflowHandler) UpdateWorkflowExecution(
 	request *workflowservice.UpdateWorkflowExecutionRequest,
 ) (_ *workflowservice.UpdateWorkflowExecutionResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if request == nil {
 		return nil, errRequestNotSet
@@ -3703,10 +3515,6 @@ func (wh *WorkflowHandler) UpdateWorkflowExecution(
 func (wh *WorkflowHandler) GetWorkerBuildIdOrdering(ctx context.Context, request *workflowservice.GetWorkerBuildIdOrderingRequest) (_ *workflowservice.GetWorkerBuildIdOrderingResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if request == nil {
 		return nil, errRequestNotSet
 	}
@@ -3737,10 +3545,6 @@ func (wh *WorkflowHandler) StartBatchOperation(
 	request *workflowservice.StartBatchOperationRequest,
 ) (_ *workflowservice.StartBatchOperationResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if err := wh.versionChecker.ClientSupported(ctx); err != nil {
 		return nil, err
@@ -3869,10 +3673,6 @@ func (wh *WorkflowHandler) StopBatchOperation(
 
 	defer log.CapturePanic(wh.logger, &retError)
 
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
-
 	if err := wh.versionChecker.ClientSupported(ctx); err != nil {
 		return nil, err
 	}
@@ -3915,10 +3715,6 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 	request *workflowservice.DescribeBatchOperationRequest,
 ) (_ *workflowservice.DescribeBatchOperationResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if err := wh.versionChecker.ClientSupported(ctx); err != nil {
 		return nil, err
@@ -4033,10 +3829,6 @@ func (wh *WorkflowHandler) ListBatchOperations(
 	request *workflowservice.ListBatchOperationsRequest,
 ) (_ *workflowservice.ListBatchOperationsResponse, retError error) {
 	defer log.CapturePanic(wh.logger, &retError)
-
-	if wh.isStopped() {
-		return nil, errShuttingDown
-	}
 
 	if err := wh.versionChecker.ClientSupported(ctx); err != nil {
 		return nil, err
