@@ -389,7 +389,9 @@ func (c *ControllerImpl) acquireShards() {
 		}
 		if info.Identity() != c.hostInfoProvider.HostInfo().Identity() {
 			// current host is not owner of shard, unload it if it is already loaded.
-			c.CloseShardByID(shardID)
+			// XXX(alfred): graceful handover
+			c.contextTaggedLogger.Warn("ignoring shard that I no longer own", tag.ShardID(shardID))
+			//c.CloseShardByID(shardID)
 			return
 		}
 		shard, err := c.GetShardByID(shardID)
