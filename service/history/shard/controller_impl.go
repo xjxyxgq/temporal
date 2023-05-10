@@ -207,6 +207,9 @@ func (c *ControllerImpl) CloseShardByID(shardID int32) {
 		c.taggedMetricsHandler.Timer(metrics.RemoveEngineForShardLatency.GetMetricName()).Record(time.Since(startTime))
 	}()
 
+	// XXX(alfred): graceful handover
+	c.contextTaggedLogger.Warn("gracefulHandover: ControllerImpl::CloseShardByID", tag.ShardID(shardID))
+
 	shard, newNumShards := c.removeShard(shardID, nil)
 	// Stop the current shard, if it exists.
 	if shard != nil {
@@ -233,6 +236,8 @@ func (c *ControllerImpl) shardClosedCallback(shard *ContextImpl) {
 	defer func() {
 		c.taggedMetricsHandler.Timer(metrics.RemoveEngineForShardLatency.GetMetricName()).Record(time.Since(startTime))
 	}()
+
+	c.contextTaggedLogger.Warn("gracefulHandover: ControllerImpl::shardClosedCallback")
 
 	c.taggedMetricsHandler.Counter(metrics.ShardContextClosedCounter.GetMetricName()).Record(1)
 	_, newNumShards := c.removeShard(shard.shardID, shard)
@@ -389,9 +394,16 @@ func (c *ControllerImpl) acquireShards() {
 		}
 		if info.Identity() != c.hostInfoProvider.HostInfo().Identity() {
 			// current host is not owner of shard, unload it if it is already loaded.
-			// XXX(alfred): graceful handover
-			c.contextTaggedLogger.Warn("ignoring shard that I no longer own", tag.ShardID(shardID))
-			//c.CloseShardByID(shardID)
+			// XXX(alfred): graceful handover experiment: don't close
+			// the shard just because of a ringpop membership change.
+			for _, s := range c.ShardIDs() {
+				if s == shardID {
+					// Only log if we would have actually closed a shard
+					c.contextTaggedLogger.Warn("gracefulHandover: ControllerImpl::acquireShards not closing shard", tag.ShardID(shardID))
+					break
+				}
+			}
+			// c.CloseShardByID(shardID) <- commenting out for experiment
 			return
 		}
 		shard, err := c.GetShardByID(shardID)
