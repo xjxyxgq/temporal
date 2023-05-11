@@ -349,7 +349,6 @@ type (
 		RequestCancelInfos  map[int64]*commonpb.DataBlob  // RequestCancelInfo
 		SignalInfos         map[int64]*commonpb.DataBlob  // SignalInfo
 		SignalRequestedIDs  []string
-		UpdateInfos         map[string]*commonpb.DataBlob
 		ExecutionInfo       *commonpb.DataBlob // WorkflowExecutionInfo
 		ExecutionState      *commonpb.DataBlob // WorkflowExecutionState
 		NextEventID         int64
@@ -403,8 +402,6 @@ type (
 		DeleteSignalInfos         map[int64]struct{}
 		UpsertSignalRequestedIDs  map[string]struct{}
 		DeleteSignalRequestedIDs  map[string]struct{}
-		UpsertUpdateInfos         map[string]*commonpb.DataBlob
-		DeleteUpdateInfos         map[string]struct{}
 		NewBufferedEvents         *commonpb.DataBlob
 		ClearBufferedEvents       bool
 
@@ -437,7 +434,6 @@ type (
 		RequestCancelInfos  map[int64]*commonpb.DataBlob
 		SignalInfos         map[int64]*commonpb.DataBlob
 		SignalRequestedIDs  map[string]struct{}
-		UpdateInfos         map[string]*commonpb.DataBlob
 
 		Tasks map[tasks.Category][]InternalHistoryTask
 
