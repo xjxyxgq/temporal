@@ -86,19 +86,17 @@ func (m mockEventStore) AddWorkflowExecutionUpdateCompletedEvent(
 
 func TestNilMessage(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	upd := update.New(t.Name()+"update-id", ignoreCompletion)
-	err := upd.OnMessage(ctx, nil, mockEventStore{})
+	err := upd.OnMessage(context.TODO(), nil, mockEventStore{})
 	var invalidArg *serviceerror.InvalidArgument
 	require.ErrorAs(t, err, &invalidArg)
 }
 
 func TestUnsupportedMessageType(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	upd := update.New(t.Name()+"update-id", ignoreCompletion)
 	notAMessageType := historypb.HistoryEvent{}
-	err := upd.OnMessage(ctx, &notAMessageType, mockEventStore{})
+	err := upd.OnMessage(context.TODO(), &notAMessageType, mockEventStore{})
 	var invalidArg *serviceerror.InvalidArgument
 	require.ErrorAs(t, err, &invalidArg)
 }
@@ -108,7 +106,6 @@ func TestRequestAcceptComplete(t *testing.T) {
 	// accepted, and finally completed
 	t.Parallel()
 	var (
-		ctx        = context.Background()
 		completed  = false
 		effects    = effect.Buffer{}
 		invalidArg *serviceerror.InvalidArgument
@@ -143,66 +140,66 @@ func TestRequestAcceptComplete(t *testing.T) {
 	)
 
 	t.Run("request", func(t *testing.T) {
-		err := upd.OnMessage(ctx, &acpt, store)
+		err := upd.OnMessage(context.TODO(), &acpt, store)
 		require.ErrorAs(t, err, &invalidArg,
 			"expected InvalidArgument from %T while in Admitted state", &acpt)
 
-		err = upd.OnMessage(ctx, &resp, store)
+		err = upd.OnMessage(context.TODO(), &resp, store)
 		require.ErrorAsf(t, err, &invalidArg,
 			"expected InvalidArgument from %T while in Admitted state", &resp)
 
-		err = upd.OnMessage(ctx, &req, store)
+		err = upd.OnMessage(context.TODO(), &req, store)
 		require.NoError(t, err)
 		require.False(t, completed)
 
-		err = upd.OnMessage(ctx, &acpt, store)
+		err = upd.OnMessage(context.TODO(), &acpt, store)
 		require.ErrorAsf(t, err, &invalidArg,
 			"expected InvalidArgument from %T while in ProvisionallyRequested state", &resp)
 
-		effects.Apply(ctx)
+		effects.Apply(context.TODO())
 		t.Log("update state should now be Requested")
 	})
 
 	t.Run("accept", func(t *testing.T) {
-		err := upd.OnMessage(ctx, &acpt, store)
+		err := upd.OnMessage(context.TODO(), &acpt, store)
 		require.NoError(t, err)
 		require.False(t, completed)
 
-		err = upd.OnMessage(ctx, &acpt, store)
+		err = upd.OnMessage(context.TODO(), &acpt, store)
 		require.ErrorAsf(t, err, &invalidArg,
 			"expected InvalidArgument from %T in while ProvisionallyAccepted state", &resp)
 		require.False(t, completed)
 
-		ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+		ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		defer cncl()
 		_, err = upd.WaitAccepted(ctx)
 		require.ErrorIs(t, err, context.DeadlineExceeded,
 			"update acceptance should not be observable until effects are applied")
 
-		effects.Apply(ctx)
+		effects.Apply(context.TODO())
 		t.Log("update state should now be Accepted")
 
-		outcome, err := upd.WaitAccepted(ctx)
+		outcome, err := upd.WaitAccepted(context.TODO())
 		require.NoError(t, err)
 		require.Nil(t, outcome,
 			"update is accepted but not completed so outcome should be nil")
 	})
 
 	t.Run("respond", func(t *testing.T) {
-		err := upd.OnMessage(ctx, &resp, store)
+		err := upd.OnMessage(context.TODO(), &resp, store)
 		require.NoError(t, err)
 		require.False(t, completed)
 
-		ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+		ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		defer cncl()
 		_, err = upd.WaitOutcome(ctx)
 		require.ErrorIs(t, err, context.DeadlineExceeded,
 			"update outcome should not be observable until effects are applied")
 
-		effects.Apply(ctx)
+		effects.Apply(context.TODO())
 		t.Log("update state should now be Completed")
 
-		gotOutcome, err := upd.WaitOutcome(ctx)
+		gotOutcome, err := upd.WaitOutcome(context.TODO())
 		require.NoError(t, err)
 		require.Equal(t, resp.Outcome, gotOutcome)
 		require.True(t, completed)
@@ -216,7 +213,6 @@ func TestRequestAcceptComplete(t *testing.T) {
 func TestRequestReject(t *testing.T) {
 	t.Parallel()
 	var (
-		ctx       = context.Background()
 		completed = false
 		effects   = effect.Buffer{}
 		store     = mockEventStore{Controller: &effects}
@@ -229,10 +225,10 @@ func TestRequestReject(t *testing.T) {
 	)
 
 	t.Run("request", func(t *testing.T) {
-		err := upd.OnMessage(ctx, &req, store)
+		err := upd.OnMessage(context.TODO(), &req, store)
 		require.NoError(t, err)
 		require.False(t, completed)
-		effects.Apply(ctx)
+		effects.Apply(context.TODO())
 		t.Log("update state should now be Requested")
 	})
 
@@ -241,33 +237,33 @@ func TestRequestReject(t *testing.T) {
 			RejectedRequest: &req,
 			Failure:         &failurepb.Failure{Message: "An intentional failure"},
 		}
-		err := upd.OnMessage(ctx, &rej, store)
+		err := upd.OnMessage(context.TODO(), &rej, store)
 		require.NoError(t, err)
 		require.False(t, completed)
 
 		{
-			ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+			ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 			defer cncl()
 			_, err := upd.WaitAccepted(ctx)
 			require.ErrorIs(t, err, context.DeadlineExceeded,
 				"update acceptance failure should not be observable until effects are applied")
 		}
 		{
-			ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+			ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 			defer cncl()
 			_, err := upd.WaitOutcome(ctx)
 			require.ErrorIs(t, err, context.DeadlineExceeded,
 				"update acceptance failure should not be observable until effects are applied")
 		}
 
-		effects.Apply(ctx)
+		effects.Apply(context.TODO())
 		t.Log("update state should now be Completed")
 
-		acptOutcome, err := upd.WaitAccepted(ctx)
+		acptOutcome, err := upd.WaitAccepted(context.TODO())
 		require.NoError(t, err)
 		require.Equal(t, rej.Failure, acptOutcome.GetFailure())
 
-		outcome, err := upd.WaitOutcome(ctx)
+		outcome, err := upd.WaitOutcome(context.TODO())
 		require.NoError(t, err)
 		require.Equal(t, rej.Failure, outcome.GetFailure())
 
@@ -278,7 +274,6 @@ func TestRequestReject(t *testing.T) {
 func TestWithProtocolMessage(t *testing.T) {
 	t.Parallel()
 	var (
-		ctx      = context.Background()
 		store    = mockEventStore{Controller: &effect.Buffer{}}
 		updateID = t.Name() + "-update-id"
 		upd      = update.New(updateID, ignoreCompletion)
@@ -290,7 +285,7 @@ func TestWithProtocolMessage(t *testing.T) {
 
 	t.Run("good message", func(t *testing.T) {
 		protocolMsg := &protocolpb.Message{Body: mustMarshalAny(t, &req)}
-		err := upd.OnMessage(ctx, protocolMsg, store)
+		err := upd.OnMessage(context.TODO(), protocolMsg, store)
 		require.NoError(t, err)
 	})
 	t.Run("junk message", func(t *testing.T) {
@@ -300,7 +295,7 @@ func TestWithProtocolMessage(t *testing.T) {
 				Value:   []byte("even more nonsense"),
 			},
 		}
-		err := upd.OnMessage(ctx, protocolMsg, store)
+		err := upd.OnMessage(context.TODO(), protocolMsg, store)
 		require.Error(t, err)
 	})
 }
@@ -308,7 +303,6 @@ func TestWithProtocolMessage(t *testing.T) {
 func TestMessageOutput(t *testing.T) {
 	t.Parallel()
 	var (
-		ctx      = context.Background()
 		effects  effect.Buffer
 		store    = mockEventStore{Controller: &effects}
 		updateID = t.Name() + "-update-id"
@@ -325,8 +319,8 @@ func TestMessageOutput(t *testing.T) {
 		require.Empty(t, msgs)
 	})
 	t.Run("requested", func(t *testing.T) {
-		require.NoError(t, upd.OnMessage(ctx, &req, store))
-		effects.Apply(ctx)
+		require.NoError(t, upd.OnMessage(context.TODO(), &req, store))
+		effects.Apply(context.TODO())
 		msgs := make([]*protocolpb.Message, 0)
 		upd.ReadOutgoingMessages(&msgs)
 		require.Len(t, msgs, 1)
@@ -341,10 +335,9 @@ func TestMessageOutput(t *testing.T) {
 
 func TestRejectAfterAcceptFails(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	updateID := t.Name() + "-update-id"
 	upd := update.NewAccepted(updateID, ignoreCompletion)
-	err := upd.OnMessage(ctx, &updatepb.Rejection{}, eventStoreUnused)
+	err := upd.OnMessage(context.TODO(), &updatepb.Rejection{}, eventStoreUnused)
 	var invalidArg *serviceerror.InvalidArgument
 	require.ErrorAs(t, err, &invalidArg)
 	require.ErrorContains(t, err, "state")
@@ -356,7 +349,6 @@ func TestAcceptanceAndResponseInSameMessageBatch(t *testing.T) {
 	// an intermediate call to apply pending effects
 	t.Parallel()
 	var (
-		ctx       = context.Background()
 		completed = false
 		effects   = effect.Buffer{}
 		store     = mockEventStore{Controller: &effects}
@@ -367,20 +359,19 @@ func TestAcceptanceAndResponseInSameMessageBatch(t *testing.T) {
 		upd       = update.New(meta.UpdateId, func() { completed = true })
 	)
 
-	require.NoError(t, upd.OnMessage(ctx, &req, store))
-	effects.Apply(ctx)
+	require.NoError(t, upd.OnMessage(context.TODO(), &req, store))
+	effects.Apply(context.TODO())
 
-	require.NoError(t, upd.OnMessage(ctx, &acpt, store))
+	require.NoError(t, upd.OnMessage(context.TODO(), &acpt, store))
 	// no call to effects.Apply between these messages
-	require.NoError(t, upd.OnMessage(ctx, &resp, store))
+	require.NoError(t, upd.OnMessage(context.TODO(), &resp, store))
 	require.False(t, completed)
-	effects.Apply(ctx)
+	effects.Apply(context.TODO())
 	require.True(t, completed)
 }
 
 func TestCompletedLazyOutcomeRead(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	updateID := t.Name() + "-update-id"
 	outcome := successOutcome(t, "success!")
 	fetched := false
@@ -389,11 +380,11 @@ func TestCompletedLazyOutcomeRead(t *testing.T) {
 		return outcome, nil
 	})
 	require.False(t, fetched)
-	acceptedOutcome, err := upd.WaitAccepted(ctx)
+	acceptedOutcome, err := upd.WaitAccepted(context.TODO())
 	require.NoError(t, err)
 	require.Equal(t, outcome, acceptedOutcome)
 
-	got, err := upd.WaitOutcome(ctx)
+	got, err := upd.WaitOutcome(context.TODO())
 	require.True(t, fetched)
 	require.NoError(t, err)
 	require.Equal(t, outcome, got)
@@ -401,10 +392,9 @@ func TestCompletedLazyOutcomeRead(t *testing.T) {
 
 func TestDuplicateRequestNoError(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	updateID := t.Name() + "-update-id"
 	upd := update.NewAccepted(updateID, ignoreCompletion)
-	err := upd.OnMessage(ctx, &updatepb.Request{}, eventStoreUnused)
+	err := upd.OnMessage(context.TODO(), &updatepb.Request{}, eventStoreUnused)
 	require.NoError(t, err,
 		"a second request message should be ignored, not cause an error")
 
@@ -415,50 +405,43 @@ func TestDuplicateRequestNoError(t *testing.T) {
 
 func TestMessageValidation(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	var invalidArg *serviceerror.InvalidArgument
 	updateID := t.Name() + "-update-id"
 	t.Run("invalid request msg", func(t *testing.T) {
 		upd := update.New("", ignoreCompletion)
-		err := upd.OnMessage(ctx, &updatepb.Request{}, eventStoreUnused)
+		err := upd.OnMessage(context.TODO(), &updatepb.Request{}, eventStoreUnused)
 		require.ErrorAs(t, err, &invalidArg)
 		require.ErrorContains(t, err, "invalid")
 	})
 	t.Run("invalid acceptance msg", func(t *testing.T) {
 		upd := update.New(updateID, ignoreCompletion)
-		store := mockEventStore{Controller: effect.Immediate(ctx)}
+		store := mockEventStore{Controller: effect.Immediate(context.TODO())}
 		validReq := updatepb.Request{
 			Meta:  &updatepb.Meta{UpdateId: updateID},
 			Input: &updatepb.Input{Name: "not empty"},
 		}
-		err := upd.OnMessage(ctx, &validReq, store)
+		err := upd.OnMessage(context.TODO(), &validReq, store)
 		require.NoError(t, err)
-		err = upd.OnMessage(ctx, &updatepb.Acceptance{}, store)
+		err = upd.OnMessage(context.TODO(), &updatepb.Acceptance{}, store)
 		require.ErrorAs(t, err, &invalidArg)
 		require.ErrorContains(t, err, "invalid")
 	})
 	t.Run("invalid rejection msg", func(t *testing.T) {
 		upd := update.New(updateID, ignoreCompletion)
-		store := mockEventStore{
-			Controller: effect.Immediate(ctx),
-		}
+		store := mockEventStore{Controller: effect.Immediate(context.TODO())}
 		validReq := updatepb.Request{
 			Meta:  &updatepb.Meta{UpdateId: updateID},
 			Input: &updatepb.Input{Name: "not empty"},
 		}
-		err := upd.OnMessage(ctx, &validReq, store)
+		err := upd.OnMessage(context.TODO(), &validReq, store)
 		require.NoError(t, err)
-		err = upd.OnMessage(ctx, &updatepb.Rejection{}, store)
+		err = upd.OnMessage(context.TODO(), &updatepb.Rejection{}, store)
 		require.ErrorAs(t, err, &invalidArg)
 		require.ErrorContains(t, err, "invalid")
 	})
 	t.Run("invalid response msg", func(t *testing.T) {
 		upd := update.NewAccepted("", ignoreCompletion)
-		err := upd.OnMessage(
-			ctx,
-			&updatepb.Response{},
-			eventStoreUnused,
-		)
+		err := upd.OnMessage(context.TODO(), &updatepb.Response{}, eventStoreUnused)
 		require.ErrorAs(t, err, &invalidArg)
 		require.ErrorContains(t, err, "invalid")
 	})
@@ -470,7 +453,6 @@ func TestDoubleRollback(t *testing.T) {
 	// state.
 	t.Parallel()
 	var (
-		ctx       = context.Background()
 		completed = false
 		effects   = effect.Buffer{}
 		store     = mockEventStore{Controller: &effects}
@@ -482,30 +464,30 @@ func TestDoubleRollback(t *testing.T) {
 	)
 
 	upd := update.New(meta.UpdateId, func() { completed = true })
-	require.NoError(t, upd.OnMessage(ctx, &req, store))
-	effects.Apply(ctx)
+	require.NoError(t, upd.OnMessage(context.TODO(), &req, store))
+	effects.Apply(context.TODO())
 
-	require.NoError(t, upd.OnMessage(ctx, &acpt, store))
-	require.NoError(t, upd.OnMessage(ctx, &resp, store))
+	require.NoError(t, upd.OnMessage(context.TODO(), &acpt, store))
+	require.NoError(t, upd.OnMessage(context.TODO(), &resp, store))
 	require.False(t, completed)
 
 	// pretend MutalbeState write to DB fails - unwind effects
-	effects.Cancel(ctx)
+	effects.Cancel(context.TODO())
 
 	t.Run("not accepted", func(t *testing.T) {
-		ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+		ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		defer cncl()
 		_, err := upd.WaitAccepted(ctx)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 	t.Run("not completed", func(t *testing.T) {
-		ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+		ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		defer cncl()
 		_, err := upd.WaitOutcome(ctx)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 	t.Run("back to requested state", func(t *testing.T) {
-		err := upd.OnMessage(ctx, &acpt, store)
+		err := upd.OnMessage(context.TODO(), &acpt, store)
 		require.NoError(t, err, "update should be back in Requested state")
 	})
 }
@@ -513,7 +495,6 @@ func TestDoubleRollback(t *testing.T) {
 func TestRollbackCompletion(t *testing.T) {
 	t.Parallel()
 	var (
-		ctx       = context.Background()
 		completed = false
 		effects   = effect.Buffer{}
 		store     = mockEventStore{Controller: &effects}
@@ -525,21 +506,21 @@ func TestRollbackCompletion(t *testing.T) {
 		}
 	)
 
-	require.NoError(t, upd.OnMessage(ctx, &resp, store))
+	require.NoError(t, upd.OnMessage(context.TODO(), &resp, store))
 	require.False(t, completed)
 
 	// pretend MutalbeState write to DB fails - unwind effects
-	effects.Cancel(ctx)
+	effects.Cancel(context.TODO())
 
 	t.Run("not completed", func(t *testing.T) {
-		ctx, cncl := context.WithTimeout(ctx, 5*time.Millisecond)
+		ctx, cncl := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		defer cncl()
 		_, err := upd.WaitOutcome(ctx)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.False(t, completed)
 	})
 	t.Run("back to accepted state", func(t *testing.T) {
-		err := upd.OnMessage(ctx, &resp, store)
+		err := upd.OnMessage(context.TODO(), &resp, store)
 		require.NoError(t, err, "update should be back in Accepted state")
 	})
 }
