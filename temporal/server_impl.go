@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/fx"
 	"go.uber.org/multierr"
 
 	"go.temporal.io/server/common/cluster"
@@ -56,6 +57,11 @@ type (
 	}
 )
 
+var ServerFxImplModule = fx.Options(
+	fx.Provide(NewServerFxImpl),
+	fx.Provide(func(src *ServerImpl) Server { return src }),
+)
+
 // NewServerFxImpl returns a new instance of server that serves one or many services.
 func NewServerFxImpl(
 	opts *serverOptions,
@@ -69,6 +75,7 @@ func NewServerFxImpl(
 ) *ServerImpl {
 	s := &ServerImpl{
 		so:                         opts,
+		servicesMetadata:           servicesGroup.Services,
 		stoppedCh:                  stoppedCh,
 		logger:                     logger,
 		namespaceLogger:            namespaceLogger,
@@ -76,17 +83,16 @@ func NewServerFxImpl(
 		clusterMetadata:            clusterMetadata,
 		persistenceFactoryProvider: persistenceFactoryProvider,
 	}
-	for _, svcMeta := range servicesGroup.Services {
-		if svcMeta != nil {
-			s.servicesMetadata = append(s.servicesMetadata, svcMeta)
-		}
-	}
 	return s
 }
 
-func (s *ServerImpl) Start(ctx context.Context) error {
+// Start temporal server.
+// This function should be called only once, Server doesn't support multiple restarts.
+func (s *ServerImpl) Start() error {
 	s.logger.Info("Starting server for services", tag.Value(s.so.serviceNames))
 	s.logger.Debug(s.so.config.String())
+
+	ctx := context.TODO()
 
 	if err := initSystemNamespaces(
 		ctx,
@@ -100,17 +106,29 @@ func (s *ServerImpl) Start(ctx context.Context) error {
 		return fmt.Errorf("unable to initialize system namespace: %w", err)
 	}
 
-	return s.startServices()
+	if err := s.startServices(); err != nil {
+		return err
+	}
+
+	if s.so.blockingStart {
+		// If s.so.interruptCh is nil this will wait forever.
+		interruptSignal := <-s.so.interruptCh
+		s.logger.Info("Received interrupt signal, stopping the server.", tag.Value(interruptSignal))
+		return s.Stop()
+	}
+
+	return nil
 }
 
-func (s *ServerImpl) Stop(ctx context.Context) error {
+// Stop stops the server.
+func (s *ServerImpl) Stop() error {
 	var wg sync.WaitGroup
 	wg.Add(len(s.servicesMetadata))
 	close(s.stoppedCh)
 
 	for _, svcMeta := range s.servicesMetadata {
 		go func(svc *ServicesMetadata) {
-			svc.Stop(ctx)
+			svc.ServiceStopFn()
 			wg.Done()
 		}(svcMeta)
 	}
@@ -132,7 +150,7 @@ func (s *ServerImpl) startServices() error {
 	results := make(chan startServiceResult, len(s.servicesMetadata))
 	for _, svcMeta := range s.servicesMetadata {
 		go func(svcMeta *ServicesMetadata) {
-			err := svcMeta.app.Start(ctx)
+			err := svcMeta.App.Start(ctx)
 			results <- startServiceResult{
 				svc: svcMeta,
 				err: err,
@@ -143,10 +161,10 @@ func (s *ServerImpl) startServices() error {
 }
 
 func (s *ServerImpl) readResults(results chan startServiceResult) (err error) {
-	for range s.servicesMetadata {
+	for i := 0; i < len(s.servicesMetadata); i++ {
 		r := <-results
 		if r.err != nil {
-			err = multierr.Combine(err, fmt.Errorf("failed to start service %v: %w", r.svc.serviceName, r.err))
+			err = multierr.Combine(err, fmt.Errorf("failed to start service %v: %w", r.svc.ServiceName, r.err))
 		}
 	}
 	return

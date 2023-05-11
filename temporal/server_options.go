@@ -45,11 +45,6 @@ import (
 )
 
 type (
-	synchronizationModeParams struct {
-		blockingStart bool
-		interruptCh   <-chan interface{}
-	}
-
 	serverOptions struct {
 		serviceNames map[primitives.ServiceName]struct{}
 
@@ -58,7 +53,8 @@ type (
 		env       string
 		zone      string
 
-		startupSynchronizationMode synchronizationModeParams
+		interruptCh   <-chan interface{}
+		blockingStart bool
 
 		logger                     log.Logger
 		namespaceLogger            log.Logger
