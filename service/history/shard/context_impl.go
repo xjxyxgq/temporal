@@ -1417,7 +1417,8 @@ func (s *ContextImpl) handleWriteErrorAndUpdateMaxReadLevelLocked(err error, new
 	case *persistence.ShardOwnershipLostError:
 		// Shard is stolen, trigger shutdown of history engine.
 		// Handling of max read level doesn't matter here.
-		s.contextTaggedLogger.Warn("gracefulHandover: ContextImpl::handleWriteErrorAndUpdateMaxReadLevelLocked ShardOwnershipLostError")
+		s.contextTaggedLogger.Warn("gracefulHandover: ContextImpl::handleWriteErrorAndUpdateMaxReadLevelLocked ShardOwnershipLostError",
+			tag.NewAnyTag("preState", s.state)) // racy state access
 		_ = s.transition(contextRequestStop{})
 		return err
 

@@ -379,6 +379,16 @@ func (c *ControllerImpl) shardManagementPump() {
 	}
 }
 
+func (c *ControllerImpl) getShardIfValid(shardID int32) (Context, bool) {
+	c.RLock()
+	defer c.RUnlock()
+	shard, ok := c.historyShards[shardID]
+	if ok && shard.isValid() {
+		return shard, true
+	}
+	return nil, false
+}
+
 func (c *ControllerImpl) acquireShards() {
 	c.taggedMetricsHandler.Counter(metrics.AcquireShardsCounter.GetMetricName()).Record(1)
 	startTime := time.Now().UTC()
@@ -392,25 +402,25 @@ func (c *ControllerImpl) acquireShards() {
 			c.contextTaggedLogger.Error("Error looking up host for shardID", tag.Error(err), tag.OperationFailed, tag.ShardID(shardID))
 			return
 		}
+		var shard Context
 		if info.Identity() != c.hostInfoProvider.HostInfo().Identity() {
 			// current host is not owner of shard, unload it if it is already loaded.
 			// XXX(alfred): graceful handover experiment: don't close
 			// the shard just because of a ringpop membership change.
-			for _, s := range c.ShardIDs() {
-				if s == shardID {
-					// Only log if we would have actually closed a shard
-					c.contextTaggedLogger.Warn("gracefulHandover: ControllerImpl::acquireShards not closing shard", tag.ShardID(shardID))
-					break
-				}
+			existingShard, ok := c.getShardIfValid(shardID)
+			if !ok {
+				return
 			}
-			// c.CloseShardByID(shardID) <- commenting out for experiment
-			return
-		}
-		shard, err := c.GetShardByID(shardID)
-		if err != nil {
-			c.taggedMetricsHandler.Counter(metrics.GetEngineForShardErrorCounter.GetMetricName()).Record(1)
-			c.contextTaggedLogger.Error("Unable to create history shard context", tag.Error(err), tag.OperationFailed, tag.ShardID(shardID))
-			return
+			shard = existingShard
+			c.contextTaggedLogger.Warn("gracefulHandover: ControllerImpl::acquireShards probing lost shard", tag.ShardID(shardID))
+		} else {
+			newShard, err := c.GetShardByID(shardID)
+			if err != nil {
+				c.taggedMetricsHandler.Counter(metrics.GetEngineForShardErrorCounter.GetMetricName()).Record(1)
+				c.contextTaggedLogger.Error("Unable to create history shard context", tag.Error(err), tag.OperationFailed, tag.ShardID(shardID))
+				return
+			}
+			shard = newShard
 		}
 
 		// Wait up to 1s for the shard to acquire the rangeid lock.
