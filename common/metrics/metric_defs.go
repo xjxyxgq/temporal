@@ -377,8 +377,6 @@ const (
 	HistoryClientTerminateWorkflowExecutionScope = "HistoryClientTerminateWorkflowExecution"
 	// HistoryClientUpdateWorkflowExecutionScope tracks RPC calls to history service
 	HistoryClientUpdateWorkflowExecutionScope = "HistoryClientUpdateWorkflowExecution"
-	// HistoryClientPollWorkflowExecutionUpdateScope tracks RPC calls to history service
-	HistoryClientPollWorkflowExecutionUpdateScope = "HistoryClientPollPollWorkflowExecutionUpdate"
 	// HistoryClientDeleteWorkflowExecutionScope tracks RPC calls to history service
 	HistoryClientDeleteWorkflowExecutionScope = "HistoryClientDeleteWorkflowExecution"
 	// HistoryClientResetWorkflowExecutionScope tracks RPC calls to history service
