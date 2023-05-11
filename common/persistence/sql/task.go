@@ -183,6 +183,8 @@ func (m *sqlTaskManager) ListTaskQueue(
 	ctx context.Context,
 	request *persistence.ListTaskQueueRequest,
 ) (*persistence.InternalListTaskQueueResponse, error) {
+	panic("ltq")
+
 	pageToken := taskQueuePageToken{MinTaskQueueId: minTaskQueueId}
 	if request.PageToken != nil {
 		if err := gobDeserialize(request.PageToken, &pageToken); err != nil {
