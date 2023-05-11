@@ -157,7 +157,7 @@ type (
 		DeleteWorkflowTask()
 		DeleteSignalRequested(requestID string)
 		FlushBufferedEvents()
-		GetAcceptedWorkflowExecutionUpdateIDs(context.Context) []string
+		GetAcceptedWorkflowExecutionUpdateIDs(context.Context) ([]string, error)
 		GetWorkflowKey() definition.WorkflowKey
 		GetActivityByActivityID(string) (*persistencespb.ActivityInfo, bool)
 		GetActivityInfo(int64) (*persistencespb.ActivityInfo, bool)
@@ -200,7 +200,6 @@ type (
 		GetQueryRegistry() QueryRegistry
 		GetBaseWorkflowInfo() *workflowspb.BaseExecutionInfo
 		GetUpdateOutcome(ctx context.Context, updateID string) (*updatepb.Outcome, error)
-		GetUpdateInfo(ctx context.Context, updateID string) (*persistencespb.UpdateInfo, bool)
 		IsTransientWorkflowTask() bool
 		ClearTransientWorkflowTask() error
 		HasBufferedEvents() bool

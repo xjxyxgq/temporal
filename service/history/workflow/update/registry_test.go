@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package update_test
+package update
 
 import (
 	"context"
@@ -30,262 +30,216 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
-	"go.temporal.io/api/serviceerror"
+	"github.com/stretchr/testify/suite"
+	historypb "go.temporal.io/api/history/v1"
+	protocolpb "go.temporal.io/api/protocol/v1"
 	updatepb "go.temporal.io/api/update/v1"
-	historyspb "go.temporal.io/server/api/history/v1"
-	persistencespb "go.temporal.io/server/api/persistence/v1"
-	"go.temporal.io/server/internal/effect"
-	"go.temporal.io/server/service/history/workflow/update"
 )
 
-type mockUpdateStore struct {
-	update.UpdateStore
-	GetAcceptedWorkflowExecutionUpdateIDsFunc func(context.Context) []string
-	GetUpdateInfoFunc                         func(context.Context, string) (*persistencespb.UpdateInfo, bool)
-	GetUpdateOutcomeFunc                      func(context.Context, string) (*updatepb.Outcome, error)
+type (
+	updateSuite struct {
+		// override suite.Suite.Assertions with require.Assertions; this means that s.NotNil(nil) will stop the test,
+		// not merely log an error
+		*require.Assertions
+		suite.Suite
+	}
+
+	mockStore struct {
+		Storage
+		AddWorkflowExecutionUpdateAcceptedEventFunc  func(string, *updatepb.Acceptance) (*historypb.HistoryEvent, error)
+		AddWorkflowExecutionUpdateCompletedEventFunc func(*updatepb.Response) (*historypb.HistoryEvent, error)
+		GetAcceptedWorkflowExecutionUpdateIDsFunc    func(context.Context) ([]string, error)
+	}
+)
+
+func (m mockStore) AddWorkflowExecutionUpdateAcceptedEvent(
+	updateID string,
+	accpt *updatepb.Acceptance,
+) (*historypb.HistoryEvent, error) {
+	return m.AddWorkflowExecutionUpdateAcceptedEventFunc(updateID, accpt)
 }
 
-func (m mockUpdateStore) GetAcceptedWorkflowExecutionUpdateIDs(
+func (m mockStore) AddWorkflowExecutionUpdateCompletedEvent(
+	resp *updatepb.Response,
+) (*historypb.HistoryEvent, error) {
+	return m.AddWorkflowExecutionUpdateCompletedEventFunc(resp)
+}
+
+func (m mockStore) GetAcceptedWorkflowExecutionUpdateIDs(
 	ctx context.Context,
-) []string {
+) ([]string, error) {
 	return m.GetAcceptedWorkflowExecutionUpdateIDsFunc(ctx)
 }
 
-func (m mockUpdateStore) GetUpdateInfo(
-	ctx context.Context,
-	updateID string,
-) (*persistencespb.UpdateInfo, bool) {
-	return m.GetUpdateInfoFunc(ctx, updateID)
+func (s *updateSuite) SetupSuite() {
+	s.Assertions = require.New(s.T())
 }
 
-func (m mockUpdateStore) GetUpdateOutcome(
-	ctx context.Context,
-	updateID string,
-) (*updatepb.Outcome, error) {
-	return m.GetUpdateOutcomeFunc(ctx, updateID)
+func TestUpdateSuite(t *testing.T) {
+	suite.Run(t, new(updateSuite))
 }
 
-func TestFind(t *testing.T) {
-	t.Parallel()
-	updateID := t.Name() + "-update-id"
-	store := mockUpdateStore{
-		GetAcceptedWorkflowExecutionUpdateIDsFunc: func(context.Context) []string {
-			return nil
-		},
-		GetUpdateInfoFunc: func(
-			ctx context.Context,
-			updateID string,
-		) (*persistencespb.UpdateInfo, bool) {
-			return nil, false
-		},
-	}
-	reg := update.NewRegistry(store)
-	_, ok := reg.Find(context.TODO(), updateID)
-	require.False(t, ok)
+func (s *updateSuite) TestValidateMessages() {
 
-	_, found, err := reg.FindOrCreate(context.TODO(), updateID)
-	require.NoError(t, err)
-	require.False(t, found)
+	reg := NewRegistry(mockStore{})
+	upd1, _, _ := reg.Add(&updatepb.Request{Meta: &updatepb.Meta{UpdateId: "update-1"}})
 
-	_, ok = reg.Find(context.TODO(), updateID)
-	require.True(t, ok)
-}
-
-func TestHasOutgoing(t *testing.T) {
-	t.Parallel()
-	var (
-		updateID = t.Name() + "-update-id"
-		store    = mockUpdateStore{
-			GetAcceptedWorkflowExecutionUpdateIDsFunc: func(context.Context) []string {
-				return nil
-			},
-			GetUpdateInfoFunc: func(
-				ctx context.Context,
-				updateID string,
-			) (*persistencespb.UpdateInfo, bool) {
-				return nil, false
-			},
-		}
-		reg = update.NewRegistry(store)
-	)
-
-	upd, _, err := reg.FindOrCreate(context.TODO(), updateID)
-	require.NoError(t, err)
-	require.False(t, reg.HasOutgoing())
-
-	evStore := mockEventStore{Controller: effect.Immediate(context.TODO())}
-	req := updatepb.Request{
-		Meta:  &updatepb.Meta{UpdateId: updateID},
-		Input: &updatepb.Input{Name: "not_empty"},
-	}
-	require.NoError(t, upd.OnMessage(context.TODO(), &req, evStore))
-	require.True(t, reg.HasOutgoing())
-}
-
-func TestFindOrCreate(t *testing.T) {
-	t.Parallel()
-	var (
-		acceptedUpdateID  = t.Name() + "-accepted-update-id"
-		completedUpdateID = t.Name() + "-completed-update-id"
-		completedOutcome  = successOutcome(t, "success!")
-
-		storeData = map[string]*persistencespb.UpdateInfo{
-			acceptedUpdateID: &persistencespb.UpdateInfo{
-				Value: &persistencespb.UpdateInfo_AcceptancePointer{
-					AcceptancePointer: &historyspb.HistoryEventPointer{EventId: 120},
+	testCases := []struct {
+		Name     string
+		Error    string
+		Messages []*protocolpb.Message
+	}{
+		{
+			Name:  "update id not found",
+			Error: "not found",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: "bogus-update-id",
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Acceptance{}),
 				},
 			},
-			completedUpdateID: &persistencespb.UpdateInfo{
-				Value: &persistencespb.UpdateInfo_CompletedPointer{
-					CompletedPointer: &historyspb.HistoryEventPointer{EventId: 123},
+		},
+		{
+			Name:  "unknown message type",
+			Error: "unknown message type",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.WaitPolicy{}),
 				},
 			},
-		}
-		// make a store with 1 accepted and 1 completed update
-		store = mockUpdateStore{
-			GetAcceptedWorkflowExecutionUpdateIDsFunc: func(context.Context) []string {
-				return []string{acceptedUpdateID}
+		},
+		{
+			Name:  "duplicate acceptance",
+			Error: "BadUpdateWorkflowExecutionMessage: failed to accept update update-1, current state: accepted",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Acceptance{}),
+				},
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Acceptance{}),
+				},
 			},
-			GetUpdateInfoFunc: func(
-				ctx context.Context,
-				updateID string,
-			) (*persistencespb.UpdateInfo, bool) {
-				ui, ok := storeData[updateID]
-				return ui, ok
+		},
+		{
+			Name:  "complete without accept",
+			Error: "BadUpdateWorkflowExecutionMessage: failed to complete update update-1, current state: pending",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Response{}),
+				},
 			},
-			GetUpdateOutcomeFunc: func(
-				ctx context.Context,
-				updateID string,
-			) (*updatepb.Outcome, error) {
-				if updateID == completedUpdateID {
-					return completedOutcome, nil
-				}
-				return nil, serviceerror.NewNotFound("not found")
+		},
+		{
+			Name:  "reject after accept",
+			Error: "BadUpdateWorkflowExecutionMessage: failed to reject update update-1, current state: accepted",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Acceptance{}),
+				},
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Rejection{}),
+				},
 			},
-		}
-		reg = update.NewRegistry(store)
-	)
-
-	require.True(t, reg.HasIncomplete())
-
-	t.Run("new update", func(t *testing.T) {
-		updateID := "a completely new update ID"
-		_, found, err := reg.FindOrCreate(context.TODO(), updateID)
-		require.NoError(t, err)
-		require.False(t, found)
-
-		_, found, err = reg.FindOrCreate(context.TODO(), updateID)
-		require.NoError(t, err)
-		require.True(t, found, "second lookup for same updateID should find previous")
-	})
-	t.Run("find stored completed", func(t *testing.T) {
-		upd, found, err := reg.FindOrCreate(context.TODO(), completedUpdateID)
-		require.NoError(t, err)
-		require.True(t, found)
-		acptOutcome, err := upd.WaitAccepted(context.TODO())
-		require.NoError(t, err, "completed update should also be accepted")
-		require.Equal(t, completedOutcome, acptOutcome, "completed update should have an outcome")
-		got, err := upd.WaitOutcome(context.TODO())
-		require.NoError(t, err, "completed update should have an outcome")
-		require.Equal(t, completedOutcome, got, "completed update should have an outcome")
-	})
-	t.Run("find stored accepted", func(t *testing.T) {
-		upd, found, err := reg.FindOrCreate(context.TODO(), acceptedUpdateID)
-		require.NoError(t, err)
-		require.True(t, found)
-		acptOutcome, err := upd.WaitAccepted(context.TODO())
-		require.NoError(t, err)
-		require.Nil(t, acptOutcome)
-	})
-}
-
-func TestUpdateRemovalFromRegistry(t *testing.T) {
-	t.Parallel()
-	var (
-		storedAcceptedUpdateID = t.Name() + "-accepted-update-id"
-		regStore               = mockUpdateStore{
-			GetAcceptedWorkflowExecutionUpdateIDsFunc: func(context.Context) []string {
-				return []string{storedAcceptedUpdateID}
+		},
+		{
+			Name:  "complete after reject",
+			Error: "BadUpdateWorkflowExecutionMessage: failed to complete update update-1, current state: rejected",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Rejection{}),
+				},
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Response{}),
+				},
 			},
-		}
-		reg = update.NewRegistry(regStore)
-	)
+		},
 
-	upd, found, err := reg.FindOrCreate(context.TODO(), storedAcceptedUpdateID)
-	require.NoError(t, err)
-	require.True(t, found)
-
-	var effects effect.Buffer
-	evStore := mockEventStore{Controller: &effects}
-	meta := updatepb.Meta{UpdateId: storedAcceptedUpdateID}
-	outcome := successOutcome(t, "success!")
-	require.True(t, reg.HasIncomplete(), "accepted update counts as incomplete")
-
-	err = upd.OnMessage(context.TODO(), &updatepb.Response{Meta: &meta, Outcome: outcome}, evStore)
-
-	require.NoError(t, err)
-	require.False(t, reg.HasIncomplete(), "updates should be ProvisionallyCompleted")
-	require.Equal(t, 1, reg.Len(), "update should still be present in map")
-	effects.Apply(context.TODO())
-	require.Equal(t, 0, reg.Len(), "update should have been removed")
-}
-
-func TestMessageGathering(t *testing.T) {
-	t.Parallel()
-	var (
-		regStore = mockUpdateStore{
-			GetAcceptedWorkflowExecutionUpdateIDsFunc: func(context.Context) []string {
-				return nil
+		{
+			Name: "accept only",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Acceptance{}),
+				},
 			},
-			GetUpdateInfoFunc: func(context.Context, string) (*persistencespb.UpdateInfo, bool) {
-				return nil, false
+		},
+		{
+			Name: "reject only",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Rejection{}),
+				},
 			},
-		}
-		reg = update.NewRegistry(regStore)
-	)
+		},
 
-	updateID1, updateID2 := t.Name()+"-update-id-1", t.Name()+"-update-id-2"
-	upd1, _, err := reg.FindOrCreate(context.TODO(), updateID1)
-	require.NoError(t, err)
-	upd2, _, err := reg.FindOrCreate(context.TODO(), updateID2)
-	require.NoError(t, err)
-	wftStartedEventID := int64(123)
+		{
+			Name: "accept and complete",
+			Messages: []*protocolpb.Message{
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Acceptance{}),
+				},
+				{
+					Id:                 uuid.New(),
+					ProtocolInstanceId: upd1.protocolInstanceID,
+					SequencingId:       nil,
+					Body:               marshalAny(s, &updatepb.Response{}),
+				},
+			},
+		},
+	}
 
-	msgs, err := reg.ReadOutgoingMessages(wftStartedEventID)
-	require.NoError(t, err)
-	require.Empty(t, msgs)
-
-	evStore := mockEventStore{Controller: effect.Immediate(context.TODO())}
-
-	err = upd1.OnMessage(context.TODO(), &updatepb.Request{
-		Meta:  &updatepb.Meta{UpdateId: updateID1},
-		Input: &updatepb.Input{Name: t.Name() + "-update-func"},
-	}, evStore)
-	require.NoError(t, err)
-
-	msgs, err = reg.ReadOutgoingMessages(wftStartedEventID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-
-	err = upd2.OnMessage(context.TODO(), &updatepb.Request{
-		Meta:  &updatepb.Meta{UpdateId: updateID2},
-		Input: &updatepb.Input{Name: t.Name() + "-update-func"},
-	}, evStore)
-	require.NoError(t, err)
-
-	msgs, err = reg.ReadOutgoingMessages(wftStartedEventID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 2)
-
-	for _, msg := range msgs {
-		require.Equal(t, wftStartedEventID-1, msg.GetEventId())
+	for _, tc := range testCases {
+		s.T().Run(tc.Name, func(t *testing.T) {
+			err := reg.ValidateIncomingMessages(tc.Messages)
+			if len(tc.Error) > 0 {
+				s.Error(err)
+				s.Contains(err.Error(), tc.Error)
+			} else {
+				s.NoError(err)
+			}
+		})
 	}
 }
 
-func mustMarshalAny(t *testing.T, pb proto.Message) *types.Any {
-	t.Helper()
+func marshalAny(s *updateSuite, pb proto.Message) *types.Any {
+	s.T().Helper()
 	a, err := types.MarshalAny(pb)
-	require.NoError(t, err)
+	s.NoError(err)
 	return a
 }

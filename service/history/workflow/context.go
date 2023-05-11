@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
 	commonpb "go.temporal.io/api/common/v1"
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
@@ -139,7 +138,7 @@ type (
 			ctx context.Context,
 		) error
 		// TODO (alex-update): move this from workflow context.
-		UpdateRegistry(ctx context.Context) update.Registry
+		UpdateRegistry() update.Registry
 	}
 )
 
@@ -849,14 +848,9 @@ func (c *ContextImpl) ReapplyEvents(
 	return err
 }
 
-func (c *ContextImpl) UpdateRegistry(ctx context.Context) update.Registry {
+func (c *ContextImpl) UpdateRegistry() update.Registry {
 	if c.updateRegistry == nil {
-		c.updateRegistry = update.NewRegistry(
-			c.MutableState,
-			update.WithLogger(c.logger),
-			update.WithMetrics(c.metricsHandler),
-			update.WithTracerProvider(trace.SpanFromContext(ctx).TracerProvider()),
-		)
+		c.updateRegistry = update.NewRegistry(c.MutableState)
 	}
 	return c.updateRegistry
 }
