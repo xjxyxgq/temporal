@@ -26,6 +26,7 @@ package history
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -656,7 +657,12 @@ func (e *historyEngineImpl) NotifyNewTasks(
 		}
 
 		if len(tasksByCategory) > 0 {
-			e.queueProcessors[category].NotifyNewTasks(tasksByCategory)
+			_, ok := e.queueProcessors[category]
+			if ok {
+				e.queueProcessors[category].NotifyNewTasks(tasksByCategory)
+			} else {
+				e.logger.Error(fmt.Sprintf("## unknown category: %v", category))
+			}
 		}
 	}
 }
