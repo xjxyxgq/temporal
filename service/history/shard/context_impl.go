@@ -1215,7 +1215,7 @@ func (s *ContextImpl) renewRangeLocked(isStealing bool) error {
 	s.taskSequenceNumber = updatedShardInfo.GetRangeId() << s.config.RangeSizeBits
 	s.maxTaskSequenceNumber = (updatedShardInfo.GetRangeId() + 1) << s.config.RangeSizeBits
 	s.immediateTaskExclusiveMaxReadLevel = s.taskSequenceNumber
-	s.shardInfo = updatedShardInfo
+	s.shardInfo = loadShardInfoCompatibilityCheck(s.clusterMetadata, copyShardInfo(updatedShardInfo))
 
 	return nil
 }
