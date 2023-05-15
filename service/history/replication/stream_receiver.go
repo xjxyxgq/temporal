@@ -26,6 +26,7 @@ package replication
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -215,6 +216,9 @@ func (r *StreamReceiver) ackMessage(
 	}); err != nil {
 		r.logger.Error("StreamReceiver unable to send message, err", tag.Error(err))
 		return err
+	}
+	if size > 1024 {
+		r.logger.Error(fmt.Sprintf("## StreamReceiver seeing high backlog: %v", watermarkInfo.Watermark))
 	}
 	r.MetricsHandler.Histogram(metrics.ReplicationTasksRecvBacklog.GetMetricName(), metrics.ReplicationTasksRecvBacklog.GetMetricUnit()).Record(
 		int64(size),

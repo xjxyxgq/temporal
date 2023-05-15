@@ -30,6 +30,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"time"
 
 	"go.temporal.io/api/serviceerror"
 	"golang.org/x/sync/errgroup"
@@ -44,6 +45,7 @@ import (
 	"go.temporal.io/server/common/log/tag"
 	"go.temporal.io/server/common/metrics"
 	"go.temporal.io/server/common/namespace"
+	"go.temporal.io/server/common/persistence"
 	"go.temporal.io/server/common/primitives/timestamp"
 	"go.temporal.io/server/service/history/replication"
 	"go.temporal.io/server/service/history/shard"
@@ -66,6 +68,7 @@ type (
 
 func StreamReplicationTasks(
 	server historyservice.HistoryService_StreamWorkflowReplicationMessagesServer,
+	shardController shard.Controller,
 	shardContext shard.Context,
 	clientClusterShardID historyclient.ClusterShardID,
 	serverClusterShardID historyclient.ClusterShardID,
@@ -102,6 +105,9 @@ func StreamReplicationTasks(
 	})
 	errGroup.Go(func() error {
 		return sendLoop(ctx, server, shardContext, filter, clientClusterShardID, serverClusterShardID)
+	})
+	errGroup.Go(func() error {
+		return heartbeat(ctx, shardController, shardContext, clientClusterShardID, serverClusterShardID)
 	})
 	return errGroup.Wait()
 }
@@ -298,6 +304,8 @@ func sendLive(
 	newTaskNotificationChan <-chan struct{},
 	beginInclusiveWatermark int64,
 ) error {
+	ticker := time.NewTicker(16 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-newTaskNotificationChan:
@@ -315,6 +323,52 @@ func sendLive(
 				return err
 			}
 			beginInclusiveWatermark = endExclusiveWatermark
+		case <-ticker.C:
+			select {
+			case <-newTaskNotificationChan:
+				endExclusiveWatermark := shardContext.GetImmediateQueueExclusiveHighReadWatermark().TaskID
+				if err := sendTasks(
+					ctx,
+					server,
+					shardContext,
+					taskConvertor,
+					clientClusterShardID,
+					serverClusterShardID,
+					beginInclusiveWatermark,
+					endExclusiveWatermark,
+				); err != nil {
+					return err
+				}
+				beginInclusiveWatermark = endExclusiveWatermark
+			default:
+				var taskCount int64
+				endExclusiveWatermark := shardContext.GetImmediateQueueExclusiveHighReadWatermark().TaskID
+				engine, err := shardContext.GetEngine(ctx)
+				if err != nil {
+					return err
+				}
+				iter, err := engine.GetReplicationTasksIter(
+					ctx,
+					string(clientClusterShardID.ClusterID),
+					beginInclusiveWatermark,
+					endExclusiveWatermark,
+				)
+				if err != nil {
+					return err
+				}
+				for iter.HasNext() {
+					_, err := iter.Next()
+					if err != nil {
+						return err
+					}
+					taskCount++
+				}
+				shardContext.GetMetricsHandler().Histogram(metrics.ReplicationTasksSendBacklog.GetMetricName(), metrics.ReplicationTasksRecvBacklog.GetMetricUnit()).Record(
+					taskCount,
+					metrics.FromClusterIDTag(serverClusterShardID.ClusterID),
+					metrics.ToClusterIDTag(clientClusterShardID.ClusterID),
+				)
+			}
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -408,6 +462,40 @@ Loop:
 			},
 		},
 	})
+}
+
+func heartbeat(
+	ctx context.Context,
+	shardController shard.Controller,
+	shardContext shard.Context,
+	clientClusterShardID historyclient.ClusterShardID,
+	serverClusterShardID historyclient.ClusterShardID,
+) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if !shardContext.IsValid() {
+				return &persistence.ShardOwnershipLostError{ShardID: shardContext.GetShardID()}
+			}
+			if realShard, err := shardController.GetShardByID(shardContext.GetShardID()); err != nil {
+				shardContext.GetLogger().Error("## heartbeat:unable to get shard", tag.Error(err))
+				return &persistence.ShardOwnershipLostError{ShardID: shardContext.GetShardID()}
+			} else if realShard != shardContext {
+				shardContext.GetLogger().Error("## heartbeat:shard mismatch", tag.Error(err))
+				return &persistence.ShardOwnershipLostError{ShardID: shardContext.GetShardID()}
+			}
+			shardContext.GetMetricsHandler().Counter(metrics.ReplicationTestMetrics.GetMetricName()).Record(
+				int64(1),
+				metrics.FromClusterIDTag(serverClusterShardID.ClusterID),
+				metrics.ToClusterIDTag(clientClusterShardID.ClusterID),
+			)
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (f *TaskConvertorImpl) Convert(

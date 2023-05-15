@@ -1883,7 +1883,7 @@ func (h *Handler) StreamWorkflowReplicationMessages(
 	if err != nil {
 		return h.convertError(err)
 	}
-	err = replicationapi.StreamReplicationTasks(server, shardContext, clientClusterShardID, serverClusterShardID)
+	err = replicationapi.StreamReplicationTasks(server, h.controller, shardContext, clientClusterShardID, serverClusterShardID)
 	if err != nil {
 		return h.convertError(err)
 	}

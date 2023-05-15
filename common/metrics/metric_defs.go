@@ -1443,6 +1443,8 @@ var (
 	LastRetrievedMessageID                         = NewGaugeDef("last_retrieved_message_id")
 	LastProcessedMessageID                         = NewGaugeDef("last_processed_message_id")
 	ReplicationTasksSend                           = NewCounterDef("replication_tasks_send")
+	ReplicationTasksSendBacklog                    = NewDimensionlessHistogramDef("replication_tasks_send_backlog")
+	ReplicationTestMetrics                         = NewCounterDef("test_metrics")
 	ReplicationTasksRecv                           = NewCounterDef("replication_tasks_recv")
 	ReplicationTasksRecvBacklog                    = NewDimensionlessHistogramDef("replication_tasks_recv_backlog")
 	ReplicationTasksApplied                        = NewCounterDef("replication_tasks_applied")
